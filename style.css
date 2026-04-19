@@ -1,0 +1,308 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Outfit:wght@600;700&display=swap');
+
+:root {
+    --bg-deep: #030816;
+    --bg-card: #0A1128;
+    --border-light: #16244A;
+    --text-main: #FFFFFF;
+    --text-muted: #A0AABF;
+    --cyan-glow: #00E5FF;
+    
+    --color-green: #34D399;
+    --color-red: #F87171;
+    --color-amber: #FBBF24;
+}
+
+body {
+    background-color: var(--bg-deep);
+    color: var(--text-main);
+    font-family: 'Inter', sans-serif;
+    margin: 0;
+    overflow-x: hidden;
+}
+
+.stApp {
+    background-color: transparent; /* Rely on body and canvas */
+}
+
+/* Base application wrapper background */
+.stApp > header { display: none; }
+.stApp > footer { display: none !important; }
+
+/* Global Container Spacing */
+.block-container {
+    padding-top: 3rem !important;
+    max-width: 800px;
+    position: relative;
+    z-index: 10;
+}
+
+/* --- ANIMATED FLOWING LINES --- */
+.wave-container {
+    position: fixed;
+    top: 0; 
+    left: 0; 
+    width: 100vw; 
+    height: 100vh;
+    z-index: -10;
+    pointer-events: none;
+    overflow: hidden;
+    background: radial-gradient(circle at 50% 10%, rgba(0, 229, 255, 0.05) 0%, transparent 40%),
+                radial-gradient(circle at 20% 50%, rgba(59, 130, 246, 0.03) 0%, transparent 40%);
+}
+
+.wave {
+    position: absolute;
+    width: 200vw;
+    height: 100vh;
+    fill: none;
+    animation: waveFlow linear infinite;
+}
+
+.w1 { 
+    stroke: rgba(0, 229, 255, 0.08); 
+    stroke-width: 1.5px;
+    top: -5%; 
+    left: 0;
+    animation-duration: 35s; 
+}
+
+.w2 { 
+    stroke: rgba(139, 92, 246, 0.05); 
+    stroke-width: 2px;
+    top: 5%; 
+    left: -50vw;
+    animation-duration: 45s; 
+    animation-direction: reverse; 
+}
+
+.w3 { 
+    stroke: rgba(59, 130, 246, 0.06); 
+    stroke-width: 1px;
+    top: -15%; 
+    left: 0;
+    animation-duration: 40s; 
+}
+
+@keyframes waveFlow {
+    0% { transform: translateX(0); }
+    100% { transform: translateX(-50vw); }
+}
+
+/* --- BRANDING HEADER --- */
+.brand-container {
+    text-align: center;
+    margin-bottom: 2.5rem;
+    animation: fadeIn 0.8s ease-out;
+}
+
+.brand-icon {
+    font-size: 3.5rem;
+    color: var(--cyan-glow);
+    text-shadow: 0 0 30px rgba(0, 229, 255, 0.6), 0 0 10px rgba(0, 229, 255, 0.8);
+    line-height: 1;
+    margin-bottom: 0.5rem;
+    display: inline-block;
+    animation: float 4s ease-in-out infinite;
+}
+
+.brand-title {
+    font-family: 'Outfit', sans-serif;
+    font-size: 3rem;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    margin: 0;
+    color: var(--text-main);
+}
+
+.brand-subtitle {
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    letter-spacing: 0.05em;
+    font-weight: 500;
+    margin-top: 0.5rem;
+}
+
+/* --- PRECISE TEXT BOX FIX --- */
+/* Ensure the wrapper doesn't artificially constrict */
+div[data-testid="stTextInput"] {
+    margin-bottom: 2rem;
+    width: 100%;
+}
+
+/* The visual input container */
+[data-testid="stTextInputRootElement"] {
+    background-color: #081024 !important;
+    border: 1px solid rgba(0, 229, 255, 0.3) !important;
+    border-radius: 12px !important;
+    box-shadow: 0 0 30px rgba(0, 229, 255, 0.1), inset 0 0 10px rgba(0, 229, 255, 0.05) !important;
+    transition: all 0.3s ease;
+    padding: 0 !important; /* Reset streamlit internal structural padding */
+    height: 55px !important; /* Enforce uniform height */
+    
+    /* Injecting a precise SVG magnifying glass background */
+    background-image: url('data:image/svg+xml;utf8,<svg fill="none" stroke="%234B5563" stroke-width="2.5" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>') !important;
+    background-repeat: no-repeat !important;
+    background-position: 1rem center !important;
+    background-size: 1.25rem !important;
+}
+
+[data-testid="stTextInputRootElement"]:focus-within {
+    border-color: rgba(0, 229, 255, 0.8) !important;
+    box-shadow: 0 0 50px rgba(0, 229, 255, 0.25), inset 0 0 15px rgba(0, 229, 255, 0.1) !important;
+    background-color: #0A1430 !important;
+}
+
+/* The internal typing field */
+[data-testid="stTextInput"] input {
+    color: var(--text-main) !important;
+    font-family: 'Inter', sans-serif !important;
+    font-size: 1.1rem !important;
+    padding: 0 1rem 0 3rem !important; /* Explicitly pad left to clear the SVG icon */
+    height: 100% !important; 
+    line-height: normal !important;
+    background: transparent !important;
+    caret-color: var(--cyan-glow);
+}
+
+[data-testid="stTextInput"] input::placeholder {
+    color: #4B5563 !important;
+    opacity: 1 !important;
+}
+
+/* Removes standard streamlit bottom padding spacing from text input */
+div.stTextInput > div:last-child {
+    display: none !important;
+}
+
+/* --- OUTPUT CARDS --- */
+.step-list {
+    display: flex;
+    flex-direction: column;
+    gap: 1.2rem;
+}
+
+.horizontal-card {
+    display: flex;
+    align-items: center;
+    background: var(--bg-card);
+    border: 1px solid var(--border-light);
+    border-radius: 12px;
+    padding: 1.2rem 1.5rem;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+    opacity: 0;
+    transform: translateY(15px);
+    animation: slideUpFade 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+    transition: transform 0.2s, box-shadow 0.2s, border-color 0.2s;
+}
+
+.horizontal-card:hover {
+    transform: translateY(-2px) scale(1.005);
+    box-shadow: 0 8px 30px rgba(0,0,0,0.4);
+    border-color: rgba(0, 229, 255, 0.2);
+}
+
+.card-num {
+    font-family: 'Outfit', sans-serif;
+    font-size: 1.6rem;
+    font-weight: 700;
+    color: var(--cyan-glow);
+    min-width: 50px;
+}
+
+.card-body {
+    flex: 1;
+    font-size: 1.15rem;
+    font-weight: 500;
+    color: var(--text-main);
+    padding-right: 1.5rem;
+}
+
+/* --- PILL BADGES --- */
+.badge-container {
+    flex-shrink: 0;
+}
+
+.pill-badge {
+    padding: 0.35rem 1rem;
+    border-radius: 50px; /* Force perfect pill shape */
+    font-family: 'Inter', sans-serif;
+    font-size: 0.85rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.badge-device {
+    color: var(--color-green);
+    background: rgba(52, 211, 153, 0.08); /* Faint fill matching image perfectly */
+    border: 1px solid rgba(52, 211, 153, 0.3);
+    box-shadow: 0 0 15px rgba(52, 211, 153, 0.1);
+}
+
+.badge-llm {
+    color: var(--color-red);
+    background: rgba(248, 113, 113, 0.08);
+    border: 1px solid rgba(248, 113, 113, 0.3);
+    box-shadow: 0 0 15px rgba(248, 113, 113, 0.1);
+}
+
+.badge-hybrid {
+    color: var(--color-amber);
+    background: rgba(251, 191, 36, 0.08);
+    border: 1px solid rgba(251, 191, 36, 0.3);
+    box-shadow: 0 0 15px rgba(251, 191, 36, 0.1);
+}
+
+/* Badge Icons */
+.badge-icon {
+    font-size: 1.05rem;
+    opacity: 0.95;
+}
+
+/* --- MICRO TEXT --- */
+.status-indicator {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.8rem;
+    font-family: 'Inter', sans-serif;
+    font-size: 0.9rem;
+    color: var(--cyan-glow);
+    margin-bottom: 2rem;
+    padding: 0;
+    animation: fadeIn 0.3s ease-out;
+}
+
+.pulse-circle {
+    width: 10px;
+    height: 10px;
+    background-color: var(--cyan-glow);
+    border-radius: 50%;
+    box-shadow: 0 0 10px var(--cyan-glow);
+    animation: pulseGlow 1s ease-in-out infinite alternate;
+}
+
+/* --- ANIMATIONS --- */
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+@keyframes slideUpFade {
+    0% { opacity: 0; transform: translateY(15px); }
+    100% { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes float {
+    0% { transform: translateY(0px); }
+    50% { transform: translateY(-5px); }
+    100% { transform: translateY(0px); }
+}
+
+@keyframes pulseGlow {
+    from { opacity: 0.5; box-shadow: 0 0 5px var(--cyan-glow); }
+    to { opacity: 1; box-shadow: 0 0 15px var(--cyan-glow); }
+}
