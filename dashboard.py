@@ -6,7 +6,8 @@ import time
 from datetime import datetime
 from classifier import classify_prompt
 from router import route_task
-from logger import log_result, load_logs
+from logger import log_result
+from logger import load_logs as base_load_logs
 
 # --- Page Config ---
 st.set_page_config(
@@ -83,6 +84,15 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
+# --- Function to Load Logs with Caching ---
+@st.cache_data(ttl=5)  # Auto-refresh every 5 seconds
+def load_logs():
+    return base_load_logs()
+
+# --- Initialize Session State for Logs ---
+if "logs_df" not in st.session_state:
+    st.session_state.logs_df = load_logs()
+
 # --- Sidebar ---
 with st.sidebar:
     st.image("https://via.placeholder.com/150x50/6c5ce7/ffffff?text=Edge+AI", width=150)
@@ -126,6 +136,9 @@ with tab1:
 
             # Log the classification
             log_result(result, route)
+
+            # Update session state logs and force refresh
+            st.session_state.logs_df = load_logs()
 
             # --- Results ---
             st.markdown("---")
@@ -210,126 +223,133 @@ with tab2:
     st.header("📊 Analytics Dashboard")
     st.markdown("Monitor performance metrics, intent distributions, and routing trends.")
 
+    # Refresh button
+    col1, col2, col3 = st.columns([1, 1, 1])
+    with col3:
+        if st.button("🔄 Refresh Analytics"):
+            st.session_state.logs_df = load_logs()
+            st.rerun()
+
     # Load logs
-    try:
-        logs_df = load_logs()
-        if logs_df.empty:
-            st.warning("No logs available yet. Classify some prompts first!")
-        else:
-            # --- Metrics Row ---
-            col1, col2, col3, col4 = st.columns(4)
-            with col1:
-                st.metric("Total Prompts", len(logs_df))
-            with col2:
-                st.metric("Avg Latency", f"{logs_df['latency_ms'].mean():.2f} ms")
-            with col3:
-                st.metric("ODA Routes", f"{len(logs_df[logs_df['route'] == 'ODA'])}")
-            with col4:
-                st.metric("Cloud Routes", f"{len(logs_df[logs_df['route'] == 'Cloud LLM'])}")
+    logs_df = st.session_state.logs_df
+    if logs_df.empty:
+        st.warning("No logs available yet. Classify some prompts first!")
+    else:
+        # --- Metrics Row ---
+        col1, col2, col3, col4 = st.columns(4)
+        with col1:
+            st.metric("Total Prompts", len(logs_df))
+        with col2:
+            st.metric("Avg Latency", f"{logs_df['latency_ms'].mean():.2f} ms")
+        with col3:
+            st.metric("ODA Routes", f"{len(logs_df[logs_df['route'] == 'ODA'])}")
+        with col4:
+            st.metric("Cloud Routes", f"{len(logs_df[logs_df['route'] == 'Cloud LLM'])}")
 
-            st.markdown("---")
+        st.markdown("---")
 
-            # --- Charts Row ---
-            col1, col2 = st.columns(2)
-            with col1:
-                st.subheader("Route Distribution")
-                route_counts = logs_df["route"].value_counts()
-                fig_pie = px.pie(
-                    values=route_counts.values,
-                    names=route_counts.index,
-                    color_discrete_sequence=px.colors.qualitative.Set3
-                )
-                st.plotly_chart(fig_pie, use_container_width=True)
-
-            with col2:
-                st.subheader("Confidence Distribution")
-                # Extract top confidence from logs (assuming it's stored as a string in intent_matrix)
-                # For simplicity, let's assume logs_df has a 'confidence' column
-                if "confidence" in logs_df.columns:
-                    fig_hist = px.histogram(
-                        logs_df,
-                        x="confidence",
-                        nbins=20,
-                        title="Top Intent Confidence Scores",
-                        labels={"confidence": "Confidence"}
-                    )
-                    st.plotly_chart(fig_hist, use_container_width=True)
-                else:
-                    st.info("Confidence data not available in logs. Update your logger to include it.")
-
-            st.markdown("---")
-
-            # --- Latency Over Time ---
-            st.subheader("Latency Over Time")
-            logs_df["timestamp"] = pd.to_datetime(logs_df["timestamp"])
-            fig_line = px.line(
-                logs_df,
-                x="timestamp",
-                y="latency_ms",
-                color="route",
-                title="Classification Latency Trends",
-                labels={"latency_ms": "Latency (ms)", "timestamp": "Time"}
+        # --- Charts Row ---
+        col1, col2 = st.columns(2)
+        with col1:
+            st.subheader("Route Distribution")
+            route_counts = logs_df["route"].value_counts()
+            fig_pie = px.pie(
+                values=route_counts.values,
+                names=route_counts.index,
+                color_discrete_sequence=px.colors.qualitative.Set3
             )
-            st.plotly_chart(fig_line, use_container_width=True)
+            st.plotly_chart(fig_pie, use_container_width=True)
 
-    except FileNotFoundError:
-        st.warning("No logs file found. Classify some prompts to generate logs!")
+        with col2:
+            st.subheader("Confidence Distribution")
+            # Extract top confidence from logs (assuming it's stored as a string in intent_matrix)
+            # For simplicity, let's assume logs_df has a 'confidence' column
+            if "confidence" in logs_df.columns:
+                fig_hist = px.histogram(
+                    logs_df,
+                    x="confidence",
+                    nbins=20,
+                    title="Top Intent Confidence Scores",
+                    labels={"confidence": "Confidence"}
+                )
+                st.plotly_chart(fig_hist, use_container_width=True)
+            else:
+                st.info("Confidence data not available in logs. Update your logger to include it.")
+
+        st.markdown("---")
+
+        # --- Latency Over Time ---
+        st.subheader("Latency Over Time")
+        logs_df["timestamp"] = pd.to_datetime(logs_df["timestamp"])
+        fig_line = px.line(
+            logs_df,
+            x="timestamp",
+            y="latency_ms",
+            color="route",
+            title="Classification Latency Trends",
+            labels={"latency_ms": "Latency (ms)", "timestamp": "Time"}
+        )
+        st.plotly_chart(fig_line, use_container_width=True)
 
 # --- Tab 3: Logs ---
 with tab3:
     st.header("📜 Classification Logs")
     st.markdown("View and filter all classification logs.")
 
-    try:
-        logs_df = load_logs()
-        if logs_df.empty:
-            st.warning("No logs available yet. Classify some prompts first!")
-        else:
-            # --- Filters ---
-            col1, col2, col3 = st.columns(3)
-            with col1:
-                route_filter = st.multiselect(
-                    "Filter by Route:",
-                    options=logs_df["route"].unique(),
-                    default=logs_df["route"].unique()
-                )
-            with col2:
-                intent_filter = st.multiselect(
-                    "Filter by Top Intent:",
-                    options=logs_df["intent"].unique() if "intent" in logs_df.columns else [],
-                    default=logs_df["intent"].unique() if "intent" in logs_df.columns else []
-                )
-            with col3:
-                date_filter = st.date_input("Filter by Date:", value=None)
+    # Refresh button
+    col1, col2, col3 = st.columns([1, 1, 1])
+    with col3:
+        if st.button("🔄 Refresh Logs"):
+            st.session_state.logs_df = load_logs()
+            st.rerun()
 
-            # Apply filters
-            filtered_df = logs_df.copy()
-            if route_filter:
-                filtered_df = filtered_df[filtered_df["route"].isin(route_filter)]
-            if intent_filter and "intent" in filtered_df.columns:
-                filtered_df = filtered_df[filtered_df["intent"].isin(intent_filter)]
-            if date_filter:
-                filtered_df["date"] = pd.to_datetime(filtered_df["timestamp"]).dt.date
-                filtered_df = filtered_df[filtered_df["date"] == date_filter]
-
-            # Display logs
-            st.dataframe(
-                filtered_df.drop(columns=["date"], errors="ignore"),
-                use_container_width=True,
-                height=400
+    # Load logs
+    logs_df = st.session_state.logs_df
+    if logs_df.empty:
+        st.warning("No logs available yet. Classify some prompts first!")
+    else:
+        # --- Filters ---
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            route_filter = st.multiselect(
+                "Filter by Route:",
+                options=logs_df["route"].unique(),
+                default=logs_df["route"].unique()
             )
-
-            # Download button
-            csv = filtered_df.to_csv(index=False)
-            st.download_button(
-                label="📥 Download Logs as CSV",
-                data=csv,
-                file_name="classification_logs.csv",
-                mime="text/csv"
+        with col2:
+            intent_filter = st.multiselect(
+                "Filter by Top Intent:",
+                options=logs_df["intent"].unique() if "intent" in logs_df.columns else [],
+                default=logs_df["intent"].unique() if "intent" in logs_df.columns else []
             )
+        with col3:
+            date_filter = st.date_input("Filter by Date:", value=None)
 
-    except FileNotFoundError:
-        st.warning("No logs file found. Classify some prompts to generate logs!")
+        # Apply filters
+        filtered_df = logs_df.copy()
+        if route_filter:
+            filtered_df = filtered_df[filtered_df["route"].isin(route_filter)]
+        if intent_filter and "intent" in filtered_df.columns:
+            filtered_df = filtered_df[filtered_df["intent"].isin(intent_filter)]
+        if date_filter:
+            filtered_df["date"] = pd.to_datetime(filtered_df["timestamp"]).dt.date
+            filtered_df = filtered_df[filtered_df["date"] == date_filter]
+
+        # Display logs
+        st.dataframe(
+            filtered_df.drop(columns=["date"], errors="ignore"),
+            use_container_width=True,
+            height=400
+        )
+
+        # Download button
+        csv = filtered_df.to_csv(index=False)
+        st.download_button(
+            label="📥 Download Logs as CSV",
+            data=csv,
+            file_name="classification_logs.csv",
+            mime="text/csv"
+        )
 
 # --- Footer ---
 st.markdown("---")
