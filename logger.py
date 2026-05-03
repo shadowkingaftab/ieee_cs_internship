@@ -11,7 +11,11 @@ import json
 from datetime import datetime
 
 # ── Config ───────────────────────────────────────────────────────────────────
-LOG_FILE = "logs.csv"
+script_dir = os.path.dirname(os.path.abspath(__file__))
+LOG_FILE = os.path.join(script_dir, "logs.csv")
+
+# Ensure directory exists just in case
+os.makedirs(script_dir, exist_ok=True)
 
 # All column names — must stay consistent across every log entry
 COLUMNS = [

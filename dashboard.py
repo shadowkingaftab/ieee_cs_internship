@@ -85,7 +85,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # --- Function to Load Logs with Caching ---
-@st.cache_data(ttl=5)  # Auto-refresh every 5 seconds
+@st.cache_data(ttl=1)  # Auto-refresh every 1 second
 def load_logs():
     return base_load_logs()
 
@@ -139,6 +139,7 @@ with tab1:
 
             # Update session state logs and force refresh
             st.session_state.logs_df = load_logs()
+            st.rerun()
 
             # --- Results ---
             st.markdown("---")
@@ -350,6 +351,23 @@ with tab3:
             file_name="classification_logs.csv",
             mime="text/csv"
         )
+
+# --- Debug Info ---
+st.markdown("---")
+st.markdown("### 🔍 Debug Info")
+import os
+script_dir = os.path.dirname(os.path.abspath(__file__))
+log_file = os.path.join(script_dir, "logs.csv")
+st.code(f"Log file path: {log_file}")
+st.code(f"File exists: {os.path.isfile(log_file)}")
+if os.path.isfile(log_file):
+    with open(log_file, "r", encoding="utf-8") as f:
+        # Read only last 10 lines to save space
+        lines = f.readlines()
+        if len(lines) > 10:
+            st.code("... showing last 10 lines ...\n" + "".join(lines[-10:]))
+        else:
+            st.code("".join(lines))
 
 # --- Footer ---
 st.markdown("---")
