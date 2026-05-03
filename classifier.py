@@ -12,18 +12,19 @@ Model used: typeform/distilbert-base-uncased-mnli (~268MB, fast)
 
 from transformers import pipeline
 import time
+import sys
 
 # ── Load model once at startup ──────────────────────────────────────────────
 # This line downloads the model the FIRST time (takes ~1-2 min).
 # After that it's cached locally and loads in ~3 seconds.
-print("Loading classifier model... (first run downloads ~268MB)")
+print("Loading classifier model... (first run downloads ~268MB)", file=sys.stderr)
 
 classifier = pipeline(
     "zero-shot-classification",
     model="typeform/distilbert-base-uncased-mnli"
 )
 
-print("Model loaded successfully!")
+print("Model loaded successfully!", file=sys.stderr)
 
 # ── Define your intent labels ────────────────────────────────────────────────
 # These are the 5 categories your system understands.

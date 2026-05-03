@@ -3,3 +3,4 @@ __pycache__/
 logs.csv 
 *.pyc 
 ~/.cache/huggingface/
+node_modules/
