@@ -27,26 +27,25 @@ classifier = pipeline(
 print("Model loaded successfully!", file=sys.stderr)
 
 # ── Define your intent labels ────────────────────────────────────────────────
-# These are the 5 categories your system understands.
-# The model will score the prompt against ALL of these and pick the best match.
 INTENT_LABELS = [
-    "question",           # User is asking something  → e.g. "What is edge AI?"
-    "instruction",        # User wants something done  → e.g. "Translate this text"
-    "multi-step task",    # Multiple actions needed    → e.g. "Summarize and send"
-    "analysis",           # Needs deep reasoning       → e.g. "Analyze this dataset"
-    "creative request"    # Open-ended generation      → e.g. "Write a poem about..."
+    "summarize", "translate", "analyze_data", "generate_code",
+    "multi_step", "ambiguous", "urgent", "simple_query"
 ]
-
 
 def classify_prompt(prompt: str) -> dict:
     """
     Takes a raw text prompt.
     Returns a dictionary with:
       - prompt        : the original text
-      - intent        : the top detected label
-      - confidence    : how sure the model is (0.0 to 1.0)
-      - all_scores    : scores for every label (so you can see full picture)
+      - top_intent    : the top detected label
+      - top_confidence: how sure the model is (0.0 to 1.0)
+      - intent_matrix : normalized probabilities for all labels
+      - is_multi_step : boolean if multi_step confidence is high
+      - is_ambiguous  : boolean if ambiguous confidence is high
       - latency_ms    : how long classification took in milliseconds
+      - intent        : (backwards compatibility) same as top_intent
+      - confidence    : (backwards compatibility) same as top_confidence
+      - all_scores    : (backwards compatibility) same as intent_matrix
     """
 
     if not prompt or not prompt.strip():
@@ -57,22 +56,42 @@ def classify_prompt(prompt: str) -> dict:
 
     # ── The actual classification ────────────────────────────────────────────
     # The model reads the prompt and scores it against each label.
-    # It returns labels sorted from most likely to least likely.
     result = classifier(prompt.strip(), INTENT_LABELS)
+    
+    intent_probs = {label: score for label, score in zip(result["labels"], result["scores"])}
+
+    # Add domain-specific logic (e.g., detect multi-step tasks)
+    text_lower = prompt.lower()
+    if " and " in text_lower or " then " in text_lower:
+        intent_probs["multi_step"] *= 1.5  # Boost multi-step confidence
+        
+    if "urgent" in text_lower or "asap" in text_lower:
+        intent_probs["urgent"] *= 1.5
+
+    # Normalize probabilities
+    total = sum(intent_probs.values())
+    intent_probs = {k: round(v/total, 4) for k, v in intent_probs.items()}
 
     # Stop the timer
     latency_ms = round((time.time() - start_time) * 1000, 2)
+    
+    # Get top intent after post-processing
+    top_intent, top_confidence = max(intent_probs.items(), key=lambda x: x[1])
 
     # ── Package everything into a clean dictionary ───────────────────────────
     return {
-        "prompt":     prompt.strip(),
-        "intent":     result["labels"][0],                   # top label
-        "confidence": round(result["scores"][0], 4),         # top score
-        "all_scores": {                                       # all label scores
-            label: round(score, 4)
-            for label, score in zip(result["labels"], result["scores"])
-        },
-        "latency_ms": latency_ms
+        "prompt":         prompt.strip(),
+        "top_intent":     top_intent,
+        "top_confidence": top_confidence,
+        "intent_matrix":  intent_probs,
+        "is_multi_step":  intent_probs.get("multi_step", 0) > 0.3,
+        "is_ambiguous":   intent_probs.get("ambiguous", 0) > 0.2,
+        "latency_ms":     latency_ms,
+        
+        # Backwards compatibility for existing code (like mcp_server.py)
+        "intent":         top_intent,
+        "confidence":     top_confidence,
+        "all_scores":     intent_probs
     }
 
 
@@ -82,15 +101,17 @@ if __name__ == "__main__":
         "What is the difference between edge AI and cloud AI?",
         "Translate this paragraph to Kannada",
         "Analyze the sensor data and generate a weekly report",
-        "Summarize this PDF and then email it to my team",
+        "Summarize this PDF and then email it to my team ASAP",
         "Write a poem about distributed computing"
     ]
 
     print("\n=== CLASSIFIER SELF-TEST ===\n")
     for p in test_prompts:
         out = classify_prompt(p)
-        print(f"Prompt     : {out['prompt']}")
-        print(f"Intent     : {out['intent']}")
-        print(f"Confidence : {out['confidence'] * 100:.1f}%")
-        print(f"Latency    : {out['latency_ms']} ms")
+        print(f"Prompt        : {out['prompt']}")
+        print(f"Top Intent    : {out['top_intent']}")
+        print(f"Confidence    : {out['top_confidence'] * 100:.1f}%")
+        print(f"Is Multi-Step?: {out['is_multi_step']}")
+        print(f"Is Urgent?    : {out['intent_matrix'].get('urgent', 0) > 0.3}")
+        print(f"Latency       : {out['latency_ms']} ms")
         print("-" * 50)

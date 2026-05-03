@@ -2,3 +2,6 @@ transformers
 torch
 gradio
 pandas
+streamlit
+plotly
+graphviz

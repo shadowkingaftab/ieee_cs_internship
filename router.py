@@ -2,66 +2,54 @@
 router.py
 ---------
 The decision-maker of the system.
-
-Takes the INTENT and CONFIDENCE from classifier.py
-and decides WHERE the task should be processed:
-
-  ODA        = On-Device AI  → fast, private, works offline
-  Hybrid     = Split between edge device + cloud
-  Cloud LLM  = Full cloud model needed
-
-The routing logic uses BOTH intent AND confidence:
-  - High confidence + simple task  → trust edge model (ODA)
-  - High confidence + complex task → needs cloud power
-  - Low confidence                 → don't trust edge, send to cloud
-  - Medium confidence              → hedge with hybrid
-  - Multi-step                     → always hybrid (needs both)
+Takes the intent matrix and text from classifier.py
+and decides WHERE the task should be processed.
 """
 
-
-def get_route(intent: str, confidence: float) -> str:
+def route_task(intent_matrix: dict, text: str) -> str:
     """
-    Core routing function.
-
-    Parameters:
-      intent     : string label from classifier.py
-      confidence : float between 0.0 and 1.0
-
-    Returns:
-      "ODA", "Hybrid", or "Cloud LLM"
+    Core routing function using the full intent matrix and context.
     """
+    if not intent_matrix:
+        return "Cloud LLM"
 
-    # ── Rule 1: Low confidence = don't trust the edge model ─────────────────
-    # If the model itself isn't sure what the intent is,
-    # it's safer to send to cloud which has more reasoning power.
-    if confidence < 0.55:
+    top_intent, top_confidence = max(intent_matrix.items(), key=lambda x: x[1])
+
+    # ── Rule 1: Urgent tasks bypass ODA ──────────────────────────────────────
+    if "urgent" in text.lower() or intent_matrix.get("urgent", 0) > 0.5:
         return "Cloud LLM"
 
     # ── Rule 2: Multi-step always needs both ────────────────────────────────
-    # Multi-step tasks have sub-tasks that might need different resources.
-    # Some sub-tasks go on-device, some go to cloud → Hybrid.
-    if intent == "multi-step task":
+    if intent_matrix.get("multi_step", 0) > 0.3:
         return "Hybrid"
 
-    # ── Rule 3: High confidence + simple task = safe for edge ───────────────
-    # A clear question or simple instruction? The edge model can handle it.
-    if confidence >= 0.75 and intent in ["question", "instruction"]:
-        return "ODA"
-
-    # ── Rule 4: High confidence + complex task = send to cloud ──────────────
-    # Even if we're sure it's an analysis/creative task,
-    # those need the full power of a large cloud model.
-    if confidence >= 0.75 and intent in ["analysis", "creative request"]:
+    # ── Rule 3: Low confidence = don't trust the edge model ─────────────────
+    if top_confidence < 0.55:
         return "Cloud LLM"
 
+    # ── Rule 4: High confidence + simple task = safe for edge ───────────────
+    if top_confidence >= 0.75:
+        if top_intent in ["summarize", "translate", "simple_query"]:
+            return "ODA"
+        else:
+            return "Cloud LLM"
+
     # ── Rule 5: Medium confidence = hedge with hybrid ───────────────────────
-    # 0.55–0.74 confidence: not sure enough to fully trust edge,
-    # not complex enough to force cloud. Split the work.
     return "Hybrid"
 
+def get_route(intent: str, confidence: float) -> str:
+    """Legacy fallback for older tools"""
+    if confidence < 0.55:
+        return "Cloud LLM"
+    if intent in ["multi-step task", "multi_step"]:
+        return "Hybrid"
+    if confidence >= 0.75 and intent in ["question", "instruction", "summarize", "translate"]:
+        return "ODA"
+    if confidence >= 0.75 and intent in ["analysis", "creative request", "analyze_data", "generate_code"]:
+        return "Cloud LLM"
+    return "Hybrid"
 
 def get_route_color(route: str) -> str:
-    """Returns an emoji color indicator for the route."""
     colors = {
         "ODA":       "🟢",
         "Hybrid":    "🟡",
@@ -69,54 +57,23 @@ def get_route_color(route: str) -> str:
     }
     return colors.get(route, "⚪")
 
+def get_route_explanation(intent_matrix: dict, route: str) -> str:
+    """Returns an explanation based on the intent matrix."""
+    if not intent_matrix:
+        return "No intent matrix provided."
+        
+    top_intent, top_confidence = max(intent_matrix.items(), key=lambda x: x[1])
+    pct = round(top_confidence * 100, 1)
 
-def get_route_explanation(intent: str, confidence: float, route: str) -> str:
-    """
-    Returns a human-readable explanation of WHY this route was chosen.
-    Useful for the UI and for understanding your system's decisions.
-    """
-    pct = round(confidence * 100, 1)
-
-    if confidence < 0.55:
-        return (
-            f"Confidence is low ({pct}%) — the model is uncertain about intent. "
-            f"Routing to Cloud LLM for safer, more accurate processing."
-        )
-    if intent == "multi-step task":
-        return (
-            f"Multi-step tasks contain sub-tasks that need different resources. "
-            f"Hybrid routing splits lightweight steps to edge, complex steps to cloud."
-        )
+    if intent_matrix.get("urgent", 0) > 0.5:
+        return "Task marked as urgent. Routing directly to Cloud LLM."
+    if intent_matrix.get("multi_step", 0) > 0.3:
+        return "Multi-step tasks contain sub-tasks that need different resources. Hybrid routing splits lightweight steps to edge, complex steps to cloud."
+    if top_confidence < 0.55:
+        return f"Confidence is low ({pct}%) — the model is uncertain about intent. Routing to Cloud LLM for safer processing."
     if route == "ODA":
-        return (
-            f"High confidence ({pct}%) on a simple '{intent}'. "
-            f"On-device AI can handle this fast, privately, without internet."
-        )
+        return f"High confidence ({pct}%) on a simple '{top_intent}'. On-device AI can handle this fast, privately, without internet."
     if route == "Cloud LLM":
-        return (
-            f"'{intent.capitalize()}' requires deep reasoning or generation. "
-            f"Sending to Cloud LLM for full model capability."
-        )
-    return (
-        f"Medium confidence ({pct}%) — not certain enough for pure edge, "
-        f"not complex enough to force cloud. Using Hybrid approach."
-    )
-
-
-# ── Quick self-test ──────────────────────────────────────────────────────────
-if __name__ == "__main__":
-    test_cases = [
-        ("question",        0.92),
-        ("analysis",        0.88),
-        ("multi-step task", 0.79),
-        ("instruction",     0.61),
-        ("creative request",0.45),
-    ]
-
-    print("\n=== ROUTER SELF-TEST ===\n")
-    for intent, conf in test_cases:
-        route = get_route(intent, conf)
-        explanation = get_route_explanation(intent, conf, route)
-        color = get_route_color(route)
-        print(f"Intent: {intent:<20} Conf: {conf}  →  {color} {route}")
-        print(f"  Why: {explanation}\n")
+        return f"'{top_intent.capitalize()}' requires deep reasoning or generation. Sending to Cloud LLM for full model capability."
+    
+    return f"Medium confidence ({pct}%) — not certain enough for pure edge, not complex enough to force cloud. Using Hybrid approach."
