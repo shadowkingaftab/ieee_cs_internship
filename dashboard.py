@@ -9,6 +9,10 @@ import streamlit as st
 import plotly.express as px
 import pandas as pd
 import os
+from dotenv import load_dotenv
+
+load_dotenv()
+
 from classifier import classify_prompt
 from router import route_task, get_route_explanation
 from logger import log_result

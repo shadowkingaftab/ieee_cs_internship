@@ -8,3 +8,4 @@ graphviz
 accelerate
 sentencepiece
 requests
+python-dotenv

@@ -11,6 +11,9 @@ Set it before running:
 
 import requests
 import os
+from dotenv import load_dotenv
+
+load_dotenv()
 
 GROK_API_URL = "https://api.x.ai/v1/chat/completions"
 
