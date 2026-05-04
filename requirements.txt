@@ -5,3 +5,6 @@ pandas
 streamlit
 plotly
 graphviz
+accelerate
+sentencepiece
+requests

@@ -2,19 +2,15 @@
 dashboard.py
 ------------
 Premium multi-tab Streamlit dashboard for the Edge AI Intent Classifier.
-Matches logger.py column names EXACTLY: timestamp, prompt, intent,
-confidence, intent_matrix, route, latency_ms
+Now shows actual Qwen2-0.8B (ODA) and Grok (Cloud) model outputs.
 """
 
 import streamlit as st
 import plotly.express as px
-import plotly.graph_objects as go
 import pandas as pd
-import json
 import os
-import time
 from classifier import classify_prompt
-from router import route_task
+from router import route_task, get_route_explanation
 from logger import log_result
 
 # ── Constants ────────────────────────────────────────────────────────────────
@@ -61,13 +57,23 @@ st.markdown("""
         border: none;
     }
     .stButton>button:hover { background-color: #5649d1; }
+    .output-box {
+        background: #f8f9fa;
+        border: 1px solid #dee2e6;
+        border-radius: 8px;
+        padding: 16px;
+        font-family: monospace;
+        white-space: pre-wrap;
+        font-size: 0.9em;
+        max-height: 300px;
+        overflow-y: auto;
+    }
 </style>
 """, unsafe_allow_html=True)
 
 
-# ── Helper: Load logs fresh from disk ────────────────────────────────────────
+# ── Helper: Load logs fresh from disk (no caching) ───────────────────────────
 def load_logs_fresh() -> pd.DataFrame:
-    """Always reads from disk. Never cached."""
     if not os.path.exists(LOG_FILE):
         return pd.DataFrame(columns=COLUMNS)
     try:
@@ -85,122 +91,138 @@ with st.sidebar:
     st.markdown("## 🤖 Edge AI Classifier")
     st.markdown("---")
     st.markdown("""
-**Route Legend:**
-- 🟢 **ODA** — On-Device AI (fast, private, offline)
-- 🟡 **Hybrid** — Edge + Cloud split
-- 🔴 **Cloud LLM** — Full cloud model
+**Route → Model:**
+- 🟢 **ODA** → Qwen2-0.8B (local)
+- 🟡 **Hybrid** → Qwen + Grok
+- 🔴 **Cloud LLM** → Grok API
 """)
     st.markdown("---")
-    st.info("**Model:** `typeform/distilbert-base-uncased-mnli`\n\n**Size:** ~268 MB\n\n**Type:** Zero-shot NLI")
+
+    # API Key input in sidebar
+    st.markdown("### 🔑 Grok API Key")
+    grok_key = st.text_input("Paste your Grok API key:", type="password", key="grok_key_input")
+    if grok_key:
+        os.environ["GROK_API_KEY"] = grok_key
+        st.success("Key loaded for this session.")
+    else:
+        existing = os.environ.get("GROK_API_KEY", "")
+        if existing:
+            st.success("Key detected from environment.")
+        else:
+            st.warning("No key set — Cloud/Hybrid routes will show a warning.")
+
+    st.markdown("---")
+    st.info("**Classifier Model:**\n`typeform/distilbert-base-uncased-mnli`\n\n**ODA Model:**\n`Qwen/Qwen2-0.8B`")
     st.markdown("---")
     if st.button("🗑️ Clear All Logs"):
         if os.path.exists(LOG_FILE):
             os.remove(LOG_FILE)
             st.success("Logs cleared!")
-        else:
-            st.info("No logs to clear.")
+
 
 # ── Title ─────────────────────────────────────────────────────────────────────
 st.title("🤖 Edge AI Intent Classifier Dashboard")
-st.markdown("Classify prompts, inspect intent matrices, and monitor routing decisions in real-time.")
+st.markdown("Classify prompts → route to **Qwen2-0.8B** (edge) or **Grok** (cloud) → see real outputs.")
 
 # ── Tabs ──────────────────────────────────────────────────────────────────────
-tab1, tab2, tab3 = st.tabs(["🔍 Classify", "📊 Analytics", "📜 Logs"])
+tab1, tab2, tab3 = st.tabs(["🔍 Classify & Execute", "📊 Analytics", "📜 Logs"])
 
 
 # ════════════════════════════════════════════════════════════
-# TAB 1 – CLASSIFY
+# TAB 1 – CLASSIFY & EXECUTE
 # ════════════════════════════════════════════════════════════
 with tab1:
-    st.header("Classify a Prompt")
-    st.markdown("Enter a natural-language prompt to detect its intent and get a routing decision.")
+    st.header("Classify & Execute a Prompt")
+    st.markdown("The classifier detects intent, the router picks the model, and the model runs your prompt.")
 
-    col_in, col_btn = st.columns([4, 1])
-    with col_in:
-        prompt = st.text_area(
-            "Your prompt:",
-            placeholder="e.g. Summarize my emails from last week and translate them to French.",
-            height=80,
-            key="prompt_input"
-        )
-    with col_btn:
-        st.markdown("<br>", unsafe_allow_html=True)
-        classify_btn = st.button("⚡ Classify & Route", type="primary")
+    prompt = st.text_area(
+        "Your prompt:",
+        placeholder="e.g. Summarize the benefits of edge AI in IoT systems.",
+        height=100,
+        key="prompt_input"
+    )
+    classify_btn = st.button("⚡ Classify, Route & Execute", type="primary")
 
     if classify_btn:
         if not prompt.strip():
-            st.warning("Please enter a prompt before classifying.")
+            st.warning("Please enter a prompt.")
         else:
-            with st.spinner("Running intent classification…"):
-                result = classify_prompt(prompt)
-                route  = route_task(result["intent_matrix"], prompt)
-                log_result(result, route)   # Write to logs.csv immediately
+            with st.spinner("Step 1/2 — Classifying intent…"):
+                clf_result = classify_prompt(prompt)
+
+            route_label = None
+            with st.spinner(f"Step 2/2 — Executing via {route_label or 'best route'}…"):
+                route_result = route_task(clf_result["intent_matrix"], prompt)
+
+            # Log it
+            clf_result["latency_ms"] = route_result["latency_ms"]
+            log_result(clf_result, route_result["route"])
 
             st.markdown("---")
-            st.subheader("🎯 Results")
 
+            # ── Routing badge ───────────────────────────────────────────────
+            color_map = {"ODA": "#2ecc71", "Hybrid": "#f39c12", "Cloud LLM": "#e74c3c"}
+            icon_map  = {"ODA": "🟢",       "Hybrid": "🟡",       "Cloud LLM": "🔴"}
+            desc_map  = {
+                "ODA":       "Executed by **Qwen2-0.8B** — local, private, no internet needed.",
+                "Hybrid":    "Edge portion by **Qwen2-0.8B** · Cloud portion by **Grok**.",
+                "Cloud LLM": "Executed by **Grok API** — full cloud power."
+            }
+            route = route_result["route"]
+            st.markdown(f"""
+            <div style="background:{color_map[route]}; padding:18px; border-radius:12px; color:white; margin-bottom:16px;">
+                <h2 style="margin:0;">{icon_map[route]} {route}</h2>
+                <p style="margin:4px 0 0 0; opacity:0.92;">{desc_map[route]}</p>
+            </div>
+            """, unsafe_allow_html=True)
+
+            reason = get_route_explanation(clf_result["intent_matrix"], route)
+            st.info(f"**Why:** {reason}")
+
+            # ── Model output ─────────────────────────────────────────────────
+            st.subheader("📤 Model Output")
+            if route == "Hybrid":
+                col_e, col_c = st.columns(2)
+                with col_e:
+                    st.markdown("**🟢 Qwen2-0.8B (Edge)**")
+                    st.markdown(f"<div class='output-box'>{route_result.get('edge_output','')}</div>",
+                                unsafe_allow_html=True)
+                with col_c:
+                    st.markdown("**🔴 Grok (Cloud)**")
+                    st.markdown(f"<div class='output-box'>{route_result.get('cloud_output','')}</div>",
+                                unsafe_allow_html=True)
+            else:
+                st.markdown(f"<div class='output-box'>{route_result.get('output','')}</div>",
+                            unsafe_allow_html=True)
+
+            # ── Intent Matrix + Metrics ──────────────────────────────────────
+            st.markdown("---")
             left, right = st.columns(2)
 
-            # ── Left: Routing Decision ──────────────────────────────────────
             with left:
-                st.markdown("### Routing Decision")
-
-                color_map = {"ODA": "#2ecc71", "Hybrid": "#f39c12", "Cloud LLM": "#e74c3c"}
-                icon_map  = {"ODA": "🟢",       "Hybrid": "🟡",       "Cloud LLM": "🔴"}
-                desc_map  = {
-                    "ODA":       "On-Device AI · Fast, Private, Offline",
-                    "Hybrid":    "Edge + Cloud Split",
-                    "Cloud LLM": "Full Cloud Model"
-                }
-                rc = color_map.get(route, "#888")
-                ri = icon_map.get(route, "⚪")
-                rd = desc_map.get(route, "")
-
-                st.markdown(f"""
-                <div style="background:{rc}; padding:20px; border-radius:12px; color:white; margin-bottom:12px;">
-                    <h2 style="margin:0;">{ri} {route}</h2>
-                    <p style="margin:4px 0 0 0; opacity:0.9;">{rd}</p>
-                </div>
-                """, unsafe_allow_html=True)
-
-                # Reasoning
-                conf = result["top_confidence"]
-                if conf < 0.55:
-                    reason = f"Confidence too low ({conf*100:.1f}%) — Cloud LLM provides safer processing."
-                elif result.get("is_multi_step"):
-                    reason = "Multi-step task detected — Hybrid splits sub-tasks between edge and cloud."
-                elif conf >= 0.75:
-                    reason = f"High confidence ({conf*100:.1f}%) — safe to route to {route}."
-                else:
-                    reason = f"Medium confidence ({conf*100:.1f}%) — Hybrid provides the right balance."
-
-                st.info(f"**Why:** {reason}")
-
-                st.markdown(f"""
-                <div class="metric-card">
-                    <p><strong>Top Intent:</strong> {result['top_intent']} &nbsp;({conf*100:.1f}%)</p>
-                    <p><strong>Latency:</strong> {result['latency_ms']:.1f} ms</p>
-                    <p><strong>Multi-Step?</strong> {'✅ Yes' if result.get('is_multi_step') else '❌ No'}</p>
-                    <p><strong>Urgent?</strong> {'✅ Yes' if result['intent_matrix'].get('urgent', 0) > 0.5 else '❌ No'}</p>
-                </div>
-                """, unsafe_allow_html=True)
-
-            # ── Right: Intent Matrix Chart ──────────────────────────────────
-            with right:
-                st.markdown("### Intent Matrix")
-                matrix = result["intent_matrix"]
+                st.subheader("📊 Intent Matrix")
+                matrix = clf_result["intent_matrix"]
                 df_m = (pd.DataFrame({"Intent": list(matrix.keys()),
                                        "Confidence": list(matrix.values())})
                           .sort_values("Confidence", ascending=True))
-
-                fig = px.bar(
-                    df_m, x="Confidence", y="Intent", orientation="h",
-                    color="Confidence", color_continuous_scale="Viridis",
-                    labels={"Confidence": "Score"}
-                )
-                fig.update_layout(height=380, margin=dict(l=0, r=0, t=10, b=0),
+                fig = px.bar(df_m, x="Confidence", y="Intent", orientation="h",
+                             color="Confidence", color_continuous_scale="Viridis",
+                             labels={"Confidence": "Score"})
+                fig.update_layout(height=360, margin=dict(l=0,r=0,t=10,b=0),
                                   showlegend=False, xaxis_title="", yaxis_title="")
                 st.plotly_chart(fig, use_container_width=True)
+
+            with right:
+                st.subheader("⚡ Performance")
+                st.markdown(f"""
+                <div class="metric-card">
+                    <p><strong>Top Intent:</strong> {clf_result['top_intent']} &nbsp;({clf_result['top_confidence']*100:.1f}%)</p>
+                    <p><strong>Total Latency:</strong> {route_result['latency_ms']:.0f} ms</p>
+                    <p><strong>Multi-Step?</strong> {'✅ Yes' if clf_result.get('is_multi_step') else '❌ No'}</p>
+                    <p><strong>Urgent?</strong> {'✅ Yes' if matrix.get('urgent',0) > 0.5 else '❌ No'}</p>
+                    <p><strong>Model Used:</strong> {"Qwen2-0.8B" if route=="ODA" else "Grok" if route=="Cloud LLM" else "Qwen + Grok"}</p>
+                </div>
+                """, unsafe_allow_html=True)
 
 
 # ════════════════════════════════════════════════════════════
@@ -209,61 +231,46 @@ with tab1:
 with tab2:
     st.header("📊 Analytics Dashboard")
 
-    col_refresh, _, _ = st.columns([1, 3, 1])
-    with col_refresh:
-        if st.button("🔄 Refresh Analytics"):
-            st.rerun()
+    if st.button("🔄 Refresh"):
+        st.rerun()
 
-    logs = load_logs_fresh()   # Always fresh from disk
+    logs = load_logs_fresh()
 
     if logs.empty:
         st.warning("⚠️ No data yet — classify some prompts first!")
     else:
-        # ── KPI row ─────────────────────────────────────────────────────────
         k1, k2, k3, k4 = st.columns(4)
         k1.metric("Total Prompts",  len(logs))
-        k2.metric("Avg Latency",    f"{logs['latency_ms'].mean():.1f} ms")
+        k2.metric("Avg Latency",    f"{logs['latency_ms'].mean():.0f} ms")
         k3.metric("Avg Confidence", f"{logs['confidence'].mean()*100:.1f}%")
-        k4.metric("Hybrid Routes",  len(logs[logs["route"] == "Hybrid"]))
+        k4.metric("Cloud Routes",   len(logs[logs["route"] == "Cloud LLM"]))
 
         st.markdown("---")
-
         c1, c2 = st.columns(2)
 
-        # Pie chart – route distribution
         with c1:
             st.subheader("Route Distribution")
-            route_counts = logs["route"].value_counts().reset_index()
-            route_counts.columns = ["Route", "Count"]
-            color_map = {"ODA": "#2ecc71", "Hybrid": "#f39c12", "Cloud LLM": "#e74c3c"}
-            fig_pie = px.pie(
-                route_counts, names="Route", values="Count",
-                color="Route", color_discrete_map=color_map
-            )
+            rc = logs["route"].value_counts().reset_index()
+            rc.columns = ["Route", "Count"]
+            cmap = {"ODA": "#2ecc71", "Hybrid": "#f39c12", "Cloud LLM": "#e74c3c"}
+            fig_pie = px.pie(rc, names="Route", values="Count",
+                             color="Route", color_discrete_map=cmap)
             st.plotly_chart(fig_pie, use_container_width=True)
 
-        # Histogram – confidence distribution
         with c2:
             st.subheader("Confidence Distribution")
-            fig_hist = px.histogram(
-                logs, x="confidence", nbins=15,
-                color_discrete_sequence=["#6c5ce7"],
-                labels={"confidence": "Confidence Score"}
-            )
+            fig_hist = px.histogram(logs, x="confidence", nbins=15,
+                                    color_discrete_sequence=["#6c5ce7"],
+                                    labels={"confidence": "Confidence Score"})
             fig_hist.update_layout(xaxis_tickformat=".0%")
             st.plotly_chart(fig_hist, use_container_width=True)
 
-        st.markdown("---")
-
-        # Latency over time
         st.subheader("Latency Over Time")
         logs["timestamp"] = pd.to_datetime(logs["timestamp"])
-        fig_line = px.scatter(
-            logs, x="timestamp", y="latency_ms",
-            color="route", color_discrete_map=color_map,
-            labels={"latency_ms": "Latency (ms)", "timestamp": "Time"},
-            size_max=8
-        )
+        cmap = {"ODA": "#2ecc71", "Hybrid": "#f39c12", "Cloud LLM": "#e74c3c"}
+        fig_line = px.scatter(logs, x="timestamp", y="latency_ms",
+                              color="route", color_discrete_map=cmap,
+                              labels={"latency_ms": "Latency (ms)", "timestamp": "Time"})
         fig_line.update_traces(mode="markers+lines")
         st.plotly_chart(fig_line, use_container_width=True)
 
@@ -274,65 +281,52 @@ with tab2:
 with tab3:
     st.header("📜 Classification Logs")
 
-    col_refresh, _, _ = st.columns([1, 3, 1])
-    with col_refresh:
-        if st.button("🔄 Refresh Logs"):
-            st.rerun()
+    if st.button("🔄 Refresh Logs"):
+        st.rerun()
 
-    logs = load_logs_fresh()   # Always fresh from disk
+    logs = load_logs_fresh()
 
     if logs.empty:
         st.warning("⚠️ No logs yet — classify some prompts first!")
     else:
-        f1, f2, f3 = st.columns(3)
-
+        f1, f2 = st.columns(2)
         with f1:
             route_opts = logs["route"].dropna().unique().tolist()
             sel_route = st.multiselect("Filter by Route:", route_opts, default=route_opts)
         with f2:
             intent_opts = logs["intent"].dropna().unique().tolist()
             sel_intent = st.multiselect("Filter by Intent:", intent_opts, default=intent_opts)
-        with f3:
-            sel_date = st.date_input("Filter by Date:", value=None)
 
         filtered = logs.copy()
         if sel_route:
             filtered = filtered[filtered["route"].isin(sel_route)]
         if sel_intent:
             filtered = filtered[filtered["intent"].isin(sel_intent)]
-        if sel_date:
-            filtered["_date"] = pd.to_datetime(filtered["timestamp"]).dt.date
-            filtered = filtered[filtered["_date"] == sel_date]
-            filtered = filtered.drop(columns=["_date"])
 
-        # Display without the raw intent_matrix blob
         display_cols = ["timestamp", "prompt", "intent", "confidence", "route", "latency_ms"]
         st.dataframe(filtered[display_cols], use_container_width=True, height=400)
 
         csv = filtered.to_csv(index=False).encode("utf-8")
-        st.download_button("📥 Download as CSV", csv, "classification_logs.csv", "text/csv")
+        st.download_button("📥 Download CSV", csv, "classification_logs.csv", "text/csv")
 
-        with st.expander("🔬 Show raw intent_matrix data"):
+        with st.expander("🔬 Raw intent_matrix data"):
             st.dataframe(filtered[["timestamp", "prompt", "intent_matrix"]], use_container_width=True)
 
 
 # ── Debug Info ────────────────────────────────────────────────────────────────
-with st.expander("🔍 Debug Info (expand to check)"):
-    st.code(f"Log file path : {LOG_FILE}")
-    st.code(f"File exists   : {os.path.isfile(LOG_FILE)}")
+with st.expander("🔍 Debug Info"):
+    st.code(f"Log file : {LOG_FILE}")
+    st.code(f"Exists   : {os.path.isfile(LOG_FILE)}")
     if os.path.isfile(LOG_FILE):
         with open(LOG_FILE, "r", encoding="utf-8") as fh:
             lines = fh.readlines()
-        total = len(lines) - 1  # subtract header
-        st.code(f"Total rows    : {total}")
-        st.code("Last 5 rows:\n" + "".join(lines[-5:]))
+        st.code(f"Rows: {len(lines)-1}\nLast 3 rows:\n" + "".join(lines[-3:]))
 
 # ── Footer ────────────────────────────────────────────────────────────────────
 st.markdown("---")
 st.markdown(
-    "<div style='text-align:center; color:#7f8c8d;'>"
-    "Built with ❤️ using Streamlit · "
-    "Model: <code>typeform/distilbert-base-uncased-mnli</code>"
+    "<div style='text-align:center;color:#7f8c8d;'>"
+    "🤖 Edge AI Classifier · Qwen2-0.8B (ODA) · Grok (Cloud) · MCP + Corsair Ready"
     "</div>",
     unsafe_allow_html=True
 )
