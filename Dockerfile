@@ -40,7 +40,7 @@ COPY --from=builder /install /usr/local
 # Copy application source
 COPY classifier.py router.py logger.py evaluator.py ./
 COPY qwen_oda.py grok_cloud.py mcp_server.py ./
-COPY dashboard.py app.py ./
+COPY streamlit_app.py gradio_app.py ./
 COPY training/ ./training/
 COPY .env.example .env.example
 
@@ -70,7 +70,7 @@ ENV QWEN_THREADS=4
 ENV QWEN_GPU_LAYERS=0
 
 # Run the dashboard
-CMD ["streamlit", "run", "dashboard.py", \
+CMD ["streamlit", "run", "streamlit_app.py", \
      "--server.port=8501", \
      "--server.address=0.0.0.0", \
      "--server.headless=true", \

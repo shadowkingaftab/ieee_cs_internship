@@ -1,0 +1,17 @@
+# Streamlit Cloud configuration
+# https://docs.streamlit.io/streamlit-community-cloud/deploy-your-app
+
+[server]
+headless = true
+enableCORS = false
+enableXsrfProtection = false
+
+[browser]
+gatherUsageStats = false
+
+[theme]
+base = "dark"
+primaryColor = "#00d4aa"
+backgroundColor = "#0e1117"
+secondaryBackgroundColor = "#1a1d23"
+textColor = "#fafafa"

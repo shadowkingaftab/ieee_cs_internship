@@ -4,6 +4,11 @@ logs.csv
 *.pyc
 ~/.cache/huggingface/
 node_modules/
-# GGUF model files — auto-downloaded on first run, too large for git
+# GGUF model files—auto-downloaded on first run, too large for git
 models/
 *.gguf
+# Streamlit secrets (real values—keep only .example)
+.streamlit/secrets.toml
+# Temp patch scripts
+training/_patch_dashboard.py
+lines_check.txt
