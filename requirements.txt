@@ -9,3 +9,4 @@ accelerate
 sentencepiece
 requests
 python-dotenv
+llama-cpp-python

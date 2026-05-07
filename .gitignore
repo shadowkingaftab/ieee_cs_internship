@@ -1,6 +1,9 @@
-__pycache__/ 
-.env 
-logs.csv 
-*.pyc 
+__pycache__/
+.env
+logs.csv
+*.pyc
 ~/.cache/huggingface/
 node_modules/
+# GGUF model files — auto-downloaded on first run, too large for git
+models/
+*.gguf

@@ -2,7 +2,7 @@
 dashboard.py
 ------------
 Premium multi-tab Streamlit dashboard for the Edge AI Intent Classifier.
-Now shows actual Qwen2-0.8B (ODA) and Grok (Cloud) model outputs.
+Grok API (primary) + Qwen-1.8B GGUF (local fallback, ~300MB)
 """
 
 import streamlit as st
@@ -16,6 +16,8 @@ load_dotenv()
 from classifier import classify_prompt
 from router import route_task, get_route_explanation
 from logger import log_result
+from qwen_oda import is_model_downloaded, get_model_size_mb, download_model
+from grok_cloud import is_api_key_set
 
 # ── Constants ────────────────────────────────────────────────────────────────
 script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -95,28 +97,61 @@ with st.sidebar:
     st.markdown("## 🤖 Edge AI Classifier")
     st.markdown("---")
     st.markdown("""
-**Route → Model:**
-- 🟢 **ODA** → Qwen2-0.8B (local)
-- 🟡 **Hybrid** → Qwen + Grok
-- 🔴 **Cloud LLM** → Grok API
+**Route -> Model:**
+- ODA -> Qwen2-0.5B GGUF (local, ~379MB)
+- Hybrid -> Qwen (edge) + Grok (cloud)
+- Cloud LLM -> Grok API *(primary)* + Qwen *(fallback)*
 """)
     st.markdown("---")
 
-    # API Key input in sidebar
-    st.markdown("### 🔑 Grok API Key")
-    grok_key = st.text_input("Paste your Grok API key:", type="password", key="grok_key_input")
+    # ── Grok API Key ──────────────────────────────────────────────────────────
+    st.markdown("### 🔑 Grok API Key (Primary)")
+    grok_key = st.text_input(
+        "Paste your xAI Grok API key:",
+        type="password",
+        key="grok_key_input",
+        help="Get a free key at https://console.x.ai"
+    )
     if grok_key:
         os.environ["GROK_API_KEY"] = grok_key
-        st.success("Key loaded for this session.")
+        st.success("✅ Key loaded for this session.")
+    elif is_api_key_set():
+        st.success("✅ Key detected from .env / environment.")
     else:
-        existing = os.environ.get("GROK_API_KEY", "")
-        if existing:
-            st.success("Key detected from environment.")
-        else:
-            st.warning("No key set — Cloud/Hybrid routes will show a warning.")
+        st.warning("⚠️ No key — Cloud/Hybrid will fall back to local Qwen.")
 
     st.markdown("---")
-    st.info("**Classifier Model:**\n`typeform/distilbert-base-uncased-mnli`\n\n**ODA Model:**\n`Qwen/Qwen2-0.8B`")
+
+    # ── Qwen GGUF Model Status ────────────────────────────────────────────────
+    st.markdown("### 🖥️ Local Qwen Model (Fallback)")
+    if is_model_downloaded():
+        size_mb = get_model_size_mb()
+        st.success(f"✅ Downloaded ({size_mb:.0f} MB)")
+    else:
+        st.warning("⚠️ Not downloaded yet")
+        if st.button("📥 Download Qwen GGUF (~300MB)", key="dl_qwen"):
+            progress_bar = st.progress(0, text="Downloading…")
+
+            def _progress(done, total):
+                if total > 0:
+                    progress_bar.progress(
+                        min(done / total, 1.0),
+                        text=f"Downloading… {done // (1024*1024)} / {total // (1024*1024)} MB"
+                    )
+
+            ok = download_model(progress_callback=_progress)
+            if ok:
+                st.success("✅ Qwen model ready!")
+                st.rerun()
+            else:
+                st.error("❌ Download failed. Check internet connection.")
+
+    st.markdown("---")
+    st.info(
+        "**Classifier:** `distilbert-base-uncased-mnli`\n\n"
+        "**ODA / Fallback:** `Qwen2-0.5B-Instruct-Q4_K_M.gguf` (~379MB)\n\n"
+        "**Cloud (primary):** `grok-3-mini`"
+    )
     st.markdown("---")
     if st.button("🗑️ Clear All Logs"):
         if os.path.exists(LOG_FILE):
@@ -218,13 +253,14 @@ with tab1:
 
             with right:
                 st.subheader("⚡ Performance")
+                model_used_label = route_result.get("model_used", "Unknown")
                 st.markdown(f"""
                 <div class="metric-card">
                     <p><strong>Top Intent:</strong> {clf_result['top_intent']} &nbsp;({clf_result['top_confidence']*100:.1f}%)</p>
                     <p><strong>Total Latency:</strong> {route_result['latency_ms']:.0f} ms</p>
                     <p><strong>Multi-Step?</strong> {'✅ Yes' if clf_result.get('is_multi_step') else '❌ No'}</p>
                     <p><strong>Urgent?</strong> {'✅ Yes' if matrix.get('urgent',0) > 0.5 else '❌ No'}</p>
-                    <p><strong>Model Used:</strong> {"Qwen2-0.8B" if route=="ODA" else "Grok" if route=="Cloud LLM" else "Qwen + Grok"}</p>
+                    <p><strong>Model Used:</strong> {model_used_label}</p>
                 </div>
                 """, unsafe_allow_html=True)
 
@@ -330,7 +366,7 @@ with st.expander("🔍 Debug Info"):
 st.markdown("---")
 st.markdown(
     "<div style='text-align:center;color:#7f8c8d;'>"
-    "🤖 Edge AI Classifier · Qwen2-0.8B (ODA) · Grok (Cloud) · MCP + Corsair Ready"
+    "🤖 Edge AI Classifier · Qwen-1.8B GGUF (ODA/Fallback) · Grok API (Cloud/Primary) · MCP + Corsair Ready"
     "</div>",
     unsafe_allow_html=True
 )
