@@ -26,6 +26,19 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+# Helper to get config from Streamlit Secrets or Environment
+def get_config(key, default=None):
+    # 1. Try Streamlit Secrets (Cloud)
+    try:
+        import streamlit as st
+        if key in st.secrets:
+            return st.secrets[key]
+    except (ImportError, Exception):
+        pass
+    
+    # 2. Try Environment (Local / Docker)
+    return os.getenv(key, default)
+
 # ── Quantization config (from .env or defaults) ───────────────────────────────
 _QUANT_MAP = {
     "q2_k":   ("qwen2-0_5b-instruct-q2_k.gguf",   323),
@@ -34,7 +47,7 @@ _QUANT_MAP = {
     "q5_k_m": ("qwen2-0_5b-instruct-q5_k_m.gguf", 444),
     "q8_0":   ("qwen2-0_5b-instruct-q8_0.gguf",   506),
 }
-QUANT_LEVEL    = os.getenv("QWEN_QUANT", "q4_k_m").lower()
+QUANT_LEVEL    = get_config("QWEN_QUANT", "q4_k_m").lower()
 if QUANT_LEVEL not in _QUANT_MAP:
     QUANT_LEVEL = "q4_k_m"
 
@@ -71,10 +84,10 @@ def _get_optimal_batch() -> int:
     else:
         return 128   # safe for 4GB RAM machines
 
-N_THREADS    = int(os.getenv("QWEN_THREADS",    str(_get_optimal_threads())))
-N_BATCH      = int(os.getenv("QWEN_BATCH",      str(_get_optimal_batch())))
-N_GPU_LAYERS = int(os.getenv("QWEN_GPU_LAYERS", "0"))   # 0=CPU, -1=full GPU
-N_CTX        = int(os.getenv("QWEN_CTX",        "2048"))
+N_THREADS    = int(get_config("QWEN_THREADS",    str(_get_optimal_threads())))
+N_BATCH      = int(get_config("QWEN_BATCH",      str(_get_optimal_batch())))
+N_GPU_LAYERS = int(get_config("QWEN_GPU_LAYERS", "0"))   # 0=CPU, -1=full GPU
+N_CTX        = int(get_config("QWEN_CTX",        "2048"))
 
 # ── Globals ───────────────────────────────────────────────────────────────────
 _llm        = None

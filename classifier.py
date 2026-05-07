@@ -22,9 +22,22 @@ import sys
 
 load_dotenv()
 
+# Helper to get config from Streamlit Secrets or Environment
+def get_config(key, default=None):
+    # 1. Try Streamlit Secrets (Cloud)
+    try:
+        import streamlit as st
+        if key in st.secrets:
+            return st.secrets[key]
+    except (ImportError, Exception):
+        pass
+    
+    # 2. Try Environment (Local / Docker)
+    return os.getenv(key, default)
+
 # ── Load model (zero-shot or fine-tuned) ────────────────────────────────────
 # Set CLASSIFIER_MODEL_PATH in .env after running training/train_classifier.py
-_CUSTOM_PATH = os.getenv("CLASSIFIER_MODEL_PATH", "").strip()
+_CUSTOM_PATH = get_config("CLASSIFIER_MODEL_PATH", "").strip()
 _MODEL_ID    = _CUSTOM_PATH if _CUSTOM_PATH and os.path.isdir(_CUSTOM_PATH) \
                else "typeform/distilbert-base-uncased-mnli"
 

@@ -18,14 +18,28 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+# Helper to get config from Streamlit Secrets or Environment
+def get_config(key, default=None):
+    # 1. Try Streamlit Secrets (Cloud)
+    try:
+        import streamlit as st
+        if key in st.secrets:
+            return st.secrets[key]
+    except (ImportError, Exception):
+        pass
+    
+    # 2. Try Environment (Local / Docker)
+    return os.getenv(key, default)
+
+GROK_API_KEY    = get_config("GROK_API_KEY")
 GROK_API_URL    = "https://api.x.ai/v1/chat/completions"
 DEFAULT_MODEL   = "grok-3-mini"   # grok-3-mini is fast & cheap; use "grok-3" for max quality
 DEFAULT_TIMEOUT = 30              # seconds
 
 
 def is_api_key_set() -> bool:
-    """Returns True if a Grok API key is available in the environment."""
-    return bool(os.getenv("GROK_API_KEY", "").strip())
+    """Returns True if a Grok API key is available."""
+    return bool(GROK_API_KEY and GROK_API_KEY.strip())
 
 
 def run_grok(
