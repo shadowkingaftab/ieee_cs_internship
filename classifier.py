@@ -8,23 +8,38 @@ to detect the INTENT of any text prompt, along with a confidence score.
 Zero-shot means: we never trained this model on our data.
 We just give it our labels and it figures out the best match.
 Model used: typeform/distilbert-base-uncased-mnli (~268MB, fast)
+
+Fine-tuned model support:
+  Set CLASSIFIER_MODEL_PATH=models/fine_tuned_classifier in .env
+  after running: python training/train_classifier.py --epochs 5 --eval
 """
 
+import os
 from transformers import pipeline
+from dotenv import load_dotenv
 import time
 import sys
 
-# ── Load model once at startup ──────────────────────────────────────────────
-# This line downloads the model the FIRST time (takes ~1-2 min).
-# After that it's cached locally and loads in ~3 seconds.
-print("Loading classifier model... (first run downloads ~268MB)", file=sys.stderr)
+load_dotenv()
+
+# ── Load model (zero-shot or fine-tuned) ────────────────────────────────────
+# Set CLASSIFIER_MODEL_PATH in .env after running training/train_classifier.py
+_CUSTOM_PATH = os.getenv("CLASSIFIER_MODEL_PATH", "").strip()
+_MODEL_ID    = _CUSTOM_PATH if _CUSTOM_PATH and os.path.isdir(_CUSTOM_PATH) \
+               else "typeform/distilbert-base-uncased-mnli"
+
+if _CUSTOM_PATH and not os.path.isdir(_CUSTOM_PATH):
+    print(f"[classifier] WARNING: CLASSIFIER_MODEL_PATH='{_CUSTOM_PATH}' not found, using default.",
+          file=sys.stderr)
+
+print(f"Loading classifier: {_MODEL_ID}", file=sys.stderr)
 
 classifier = pipeline(
     "zero-shot-classification",
-    model="typeform/distilbert-base-uncased-mnli"
+    model=_MODEL_ID
 )
 
-print("Model loaded successfully!", file=sys.stderr)
+print("Classifier loaded successfully!", file=sys.stderr)
 
 # ── Define your intent labels ────────────────────────────────────────────────
 INTENT_LABELS = [

@@ -1,0 +1,40 @@
+# Docker build context exclusions
+# These files are excluded from the Docker image to keep it small and secure
+
+# Python artifacts
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+
+# Version control
+.git/
+.gitignore
+
+# Secrets — never bake into image; inject via docker-compose env
+.env
+
+# Large model files — mounted as volume instead
+models/
+*.gguf
+
+# Development files
+training/__pycache__/
+.gradio/
+
+# Logs (mounted as volume)
+logs.csv
+
+# Node / TS (Corsair plugin — not needed in container)
+corsair-plugin-edge-ai/
+node_modules/
+
+# IDE
+.vscode/
+.idea/
+
+# Docs
+README.md
+*.md

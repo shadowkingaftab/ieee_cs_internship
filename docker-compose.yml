@@ -1,0 +1,53 @@
+version: "3.9"
+
+services:
+  edge-ai-dashboard:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: production
+    image: edge-ai-classifier:latest
+    container_name: edge_ai_dashboard
+    ports:
+      - "8501:8501"
+    environment:
+      # ── Grok API ──────────────────────────────────────────────────────────
+      - GROK_API_KEY=${GROK_API_KEY}
+
+      # ── Qwen Quantization (q2_k | q4_k_m | q8_0) ─────────────────────────
+      - QWEN_QUANT=${QWEN_QUANT:-q4_k_m}
+
+      # ── Qwen Hardware Tuning ───────────────────────────────────────────────
+      - QWEN_THREADS=${QWEN_THREADS:-4}
+      - QWEN_BATCH=${QWEN_BATCH:-256}
+      - QWEN_GPU_LAYERS=${QWEN_GPU_LAYERS:-0}
+      - QWEN_CTX=${QWEN_CTX:-2048}
+
+    volumes:
+      # Persist downloaded models between container restarts
+      - qwen_models:/app/models
+      # Persist classification logs
+      - ./logs.csv:/app/logs.csv
+
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8501/_stcore/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 90s
+
+    # Resource limits — adjust for your server
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: "4.0"
+        reservations:
+          memory: 512M
+          cpus: "1.0"
+
+volumes:
+  # Named volume: Qwen model persists across rebuilds
+  qwen_models:
+    driver: local
