@@ -1,9 +1,9 @@
---extra-index-url https://download.pytorch.org/whl/cpu
+--extra-index-url https://abetlen.github.io/llama-cpp-python/whl/cpu
 streamlit
+llama-cpp-python
+huggingface-hub
+requests
 plotly
 pandas
 python-dotenv
 psutil
-requests
-transformers
-torch
