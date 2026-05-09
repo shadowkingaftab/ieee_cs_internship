@@ -32,47 +32,120 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# ── CSS ──────────────────────────────────────────────────────────────────────
+# streamlit_app.py
+# ─────────────────────────────────────────────────────────────────────────────
+# ── Premium Theme Styling ──────────────────────────────────────────────────
 st.markdown("""
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=Outfit:wght@400;700&display=swap" rel="stylesheet">
+
 <style>
-    .metric-card {
-        background: white;
-        padding: 15px;
-        border-radius: 10px;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        border-left: 4px solid #6c5ce7;
-        margin-bottom: 10px;
+    /* Global Reset & Typography */
+    .stApp {
+        background: radial-gradient(circle at top right, #1e1b4b, #0f172a);
+        color: #f1f5f9;
+        font-family: 'Inter', sans-serif;
     }
-    h1 { color: #2d3436; }
-    h2 { color: #6c5ce7; }
-    .stTabs [data-baseweb="tab"] {
-        height: 50px;
-        background-color: #f0f2f6;
-        border-radius: 8px 8px 0 0;
-        padding: 10px 20px;
+
+    h1, h2, h3, .stHeader {
+        font-family: 'Outfit', sans-serif !important;
+        background: linear-gradient(90deg, #a78bfa, #22d3ee);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        font-weight: 700;
+        letter-spacing: -0.02em;
     }
-    .stTabs [aria-selected="true"] {
-        background-color: #6c5ce7 !important;
-        color: white !important;
+
+    /* Glassmorphism Cards */
+    .metric-card, .output-box, div[data-testid="stExpander"] {
+        background: rgba(30, 41, 59, 0.5) !important;
+        backdrop-filter: blur(12px);
+        border: 1px solid rgba(148, 163, 184, 0.1);
+        border-radius: 16px;
+        padding: 20px;
+        box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
+        transition: transform 0.2s ease, border 0.2s ease;
+        color: #f1f5f9 !important;
     }
+    
+    .metric-card:hover {
+        transform: translateY(-2px);
+        border: 1px solid rgba(167, 139, 250, 0.3);
+    }
+
+    /* Text Legibility */
+    p, span, label, .stMarkdown {
+        color: #cbd5e1 !important;
+        font-weight: 400;
+    }
+    
+    strong { color: #f8fafc !important; font-weight: 600; }
+
+    /* Custom Buttons */
     .stButton>button {
-        background-color: #6c5ce7;
-        color: white;
-        border-radius: 8px;
-        font-weight: 600;
+        background: linear-gradient(135deg, #6d28d9 0%, #4c1d95 100%);
+        color: #ffffff !important;
         border: none;
+        padding: 12px 24px;
+        border-radius: 12px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        width: 100%;
+        box-shadow: 0 4px 14px 0 rgba(109, 40, 217, 0.39);
+        transition: all 0.3s ease;
     }
-    .stButton>button:hover { background-color: #5649d1; }
+    
+    .stButton>button:hover {
+        background: linear-gradient(135deg, #7c3aed 0%, #5b21b6 100%);
+        box-shadow: 0 6px 20px rgba(109, 40, 217, 0.5);
+        transform: scale(1.02);
+    }
+
+    /* Tabs Styling */
+    .stTabs [data-baseweb="tab-list"] {
+        gap: 8px;
+        background-color: transparent;
+    }
+
+    .stTabs [data-baseweb="tab"] {
+        height: 48px;
+        background: rgba(30, 41, 59, 0.3);
+        border-radius: 12px 12px 0 0;
+        border: 1px solid rgba(148, 163, 184, 0.1);
+        color: #94a3b8 !important;
+        transition: all 0.2s ease;
+    }
+
+    .stTabs [aria-selected="true"] {
+        background: rgba(109, 40, 217, 0.2) !important;
+        border-color: #7c3aed !important;
+        color: #e879f9 !important;
+    }
+
+    /* Text Areas & Inputs */
+    .stTextArea textarea, .stTextInput input {
+        background: rgba(15, 23, 42, 0.6) !important;
+        color: #f8fafc !important;
+        border: 1px solid rgba(148, 163, 184, 0.2) !important;
+        border-radius: 12px !important;
+    }
+
+    /* Output Box Special */
     .output-box {
-        background: #f8f9fa;
-        border: 1px solid #dee2e6;
-        border-radius: 8px;
-        padding: 16px;
-        font-family: monospace;
-        white-space: pre-wrap;
-        font-size: 0.9em;
-        max-height: 300px;
-        overflow-y: auto;
+        font-family: 'JetBrains Mono', 'Fira Code', monospace;
+        background: #020617 !important;
+        border-left: 4px solid #8b5cf6;
+        color: #38bdf8 !important; /* Cyber Blue output text */
+        font-size: 0.95rem;
+        line-height: 1.6;
+    }
+
+    /* Hide Sidebar Default border */
+    section[data-testid="stSidebar"] {
+        background-color: #0f172a !important;
+        border-right: 1px solid rgba(148, 163, 184, 0.1);
     }
 </style>
 """, unsafe_allow_html=True)
@@ -159,9 +232,13 @@ with st.sidebar:
             st.success("Logs cleared!")
 
 
-# ── Title ─────────────────────────────────────────────────────────────────────
-st.title("🤖 Edge AI Intent Classifier Dashboard")
-st.markdown("Classify prompts → route to **Qwen2-0.8B** (edge) or **Grok** (cloud) → see real outputs.")
+# ── Header ────────────────────────────────────────────────────────────────────
+st.markdown("""
+    <div style='text-align:center; margin-bottom:40px;'>
+        <h1 style='font-size:3.5rem; margin-bottom:0;'>🧠 Edge AI Dashboard</h1>
+        <p style='font-size:1.2rem; opacity:0.8;'>Intelligent Intent Classification · Cloud-Primary · Edge-Fallback</p>
+    </div>
+""", unsafe_allow_html=True)
 
 # ── Tabs ──────────────────────────────────────────────────────────────────────
 tab1, tab2, tab3, tab4 = st.tabs(["Classify", "Analytics", "Logs", "ODA Insights"])
@@ -200,18 +277,29 @@ with tab1:
             st.markdown("---")
 
             # ── Routing badge ───────────────────────────────────────────────
-            color_map = {"ODA": "#2ecc71", "Hybrid": "#f39c12", "Cloud LLM": "#e74c3c"}
+            glow_map  = {"ODA": "#2ecc71", "Hybrid": "#f39c12", "Cloud LLM": "#ef4444"}
             icon_map  = {"ODA": "🟢",       "Hybrid": "🟡",       "Cloud LLM": "🔴"}
             desc_map  = {
-                "ODA":       "Executed by **Qwen2-0.8B** — local, private, no internet needed.",
-                "Hybrid":    "Edge portion by **Qwen2-0.8B** · Cloud portion by **Grok**.",
-                "Cloud LLM": "Executed by **Grok API** — full cloud power."
+                "ODA":       "Edge-Only: Local, private, and ultra-fast.",
+                "Hybrid":    "Co-Processor: Distributed between Edge and Cloud.",
+                "Cloud LLM": "Remote Intelligence: Full Grok-3 power."
             }
             route = route_result["route"]
             st.markdown(f"""
-            <div style="background:{color_map[route]}; padding:18px; border-radius:12px; color:white; margin-bottom:16px;">
-                <h2 style="margin:0;">{icon_map[route]} {route}</h2>
-                <p style="margin:4px 0 0 0; opacity:0.92;">{desc_map[route]}</p>
+            <div style="
+                background: rgba(30, 41, 59, 0.4);
+                backdrop-filter: blur(10px);
+                border: 2px solid {glow_map[route]};
+                padding: 20px;
+                border-radius: 16px;
+                box-shadow: 0 0 20px {glow_map[route]}33;
+                margin-bottom: 24px;
+            ">
+                <div style="display:flex; align-items:center; gap:12px;">
+                    <span style="font-size:24px;">{icon_map[route]}</span>
+                    <h2 style="margin:0; background:none; -webkit-text-fill-color:{glow_map[route]};">{route}</h2>
+                </div>
+                <p style="margin:8px 0 0 0; color:#f1f5f9 !important; font-size:1.1em; font-weight:500;">{desc_map[route]}</p>
             </div>
             """, unsafe_allow_html=True)
 
@@ -245,10 +333,18 @@ with tab1:
                                        "Confidence": list(matrix.values())})
                           .sort_values("Confidence", ascending=True))
                 fig = px.bar(df_m, x="Confidence", y="Intent", orientation="h",
-                             color="Confidence", color_continuous_scale="Viridis",
+                             color="Confidence", color_continuous_scale="Purples",
+                             template="plotly_dark",
                              labels={"Confidence": "Score"})
-                fig.update_layout(height=360, margin=dict(l=0,r=0,t=10,b=0),
-                                  showlegend=False, xaxis_title="", yaxis_title="")
+                fig.update_layout(
+                    height=360, 
+                    margin=dict(l=0,r=0,t=10,b=0),
+                    paper_bgcolor='rgba(0,0,0,0)',
+                    plot_bgcolor='rgba(0,0,0,0)',
+                    showlegend=False, 
+                    xaxis_title="", 
+                    yaxis_title=""
+                )
                 st.plotly_chart(fig, use_container_width=True)
 
             with right:
@@ -488,10 +584,13 @@ with st.expander("🔍 Debug Info"):
         st.code(f"Rows: {len(lines)-1}\nLast 3 rows:\n" + "".join(lines[-3:]))
 
 # ── Footer ────────────────────────────────────────────────────────────────────
-st.markdown("---")
-st.markdown(
-    "<div style='text-align:center;color:#7f8c8d;'>"
-    "🤖 Edge AI Classifier · Qwen2-0.5B GGUF (ODA/Fallback) · Grok API (Cloud/Primary) · MCP + Corsair Ready"
-    "</div>",
-    unsafe_allow_html=True
-)
+st.markdown("<br><br>", unsafe_allow_html=True)
+st.markdown("""
+    <div style='text-align:center; padding: 20px; opacity: 0.6; font-size: 0.9rem;'>
+        <hr style='border-color: rgba(148, 163, 184, 0.1);'>
+        🤖 <strong>Edge AI Classifier</strong> &nbsp;|&nbsp; 
+        ⚡ <strong>Qwen2-0.5B GGUF</strong> (Local) &nbsp;|&nbsp; 
+        ☁️ <strong>Grok API</strong> (Cloud) &nbsp;|&nbsp; 
+        🛡️ <strong>MCP + Corsair Ready</strong>
+    </div>
+""", unsafe_allow_html=True)

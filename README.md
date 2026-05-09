@@ -1,73 +1,80 @@
-# Edge AI Intent Classifier
-### IEEE CS Internship — Phase 1 & 2 (Agent Integration)
+# Edge AI Intent Classifier & Dashboard
+### Production-Grade Hybrid Inference Engine
 
-A text classification system that detects the **intent** of any user prompt and routes it to the appropriate compute environment. This project is now a **first-class citizen in the agent ecosystem**, supporting both **MCP** (Model Context Protocol) and **Corsair** (Security/Permission layer).
-
----
-
-## 🚀 Hybrid Architecture
-Your module now supports three distinct layers of interaction:
-1. **Web Dashboard**: Local Gradio UI for manual testing.
-2. **MCP Server**: Allows AI agents (like Claude or ChatGPT) to discover and call your classifier as a tool.
-3. **Corsair Plugin**: Adds a security/permission layer that intercepts agent calls and requests human approval for risky routes (like Cloud LLM).
+A robust intent classification system that intelligently routes tasks between local **Edge AI (Qwen2-0.5B)** and **Cloud AI (Grok API)**. Features a real-time Streamlit dashboard with performance analytics and a fine-tuning pipeline.
 
 ---
 
-## Project Structure
-
-```
-ieee_cs_internship/
-├── classifier.py              # NLP model — intent detection + confidence score
-├── router.py                  # Routing logic — ODA / Hybrid / Cloud LLM
-├── logger.py                  # CSV logging — saves every result to logs.csv
-├── evaluator.py               # Metrics — confidence, latency, distribution stats
-├── app.py                     # Gradio UI — real-time testing dashboard
-├── mcp_server.py              # NEW: MCP Server — Agent discovery layer
-├── corsair-plugin-edge-ai/    # NEW: Corsair Plugin — Permission/Security layer
-│   └── index.ts               # Plugin logic & approval rules
-├── requirements.txt           # Python dependencies
-├── logs.csv                   # Auto-created when you run the app
-└── .gitignore                 # Excludes cache and node_modules
-```
+## 🚀 Key Features
+- **Hybrid Execution**: Cloud-primary (Grok-3-mini) with seamless local fallback (Qwen2-0.5B GGUF).
+- **Edge-Optimized**: Runs on CPU using `llama-cpp-python` with auto-hardware tuning.
+- **Quantization Support**: Choose between `q2_k`, `q4_k_m`, and `q8_0` via config.
+- **Production Analytics**: Track latency, confidence, and routing distributions.
+- **Fine-Tuning Ready**: Built-in pipeline to improve classification accuracy >95%.
+- **Agent Compatible**: Includes **MCP** (Model Context Protocol) and **Corsair** security layers.
 
 ---
 
 ## 🛠 Setup & Usage
 
-### 1. Python Environment
+### 1. Installation
 ```bash
-# Install dependencies
 pip install -r requirements.txt
-pip install mcp  # For the MCP server
 ```
 
-### 2. Run the Manual Dashboard
+### 2. Configuration
+Copy `.env.example` to `.env` and add your keys:
 ```bash
-python app.py
+GROK_API_KEY=your-key-here
+QWEN_QUANT=q4_k_m
 ```
-Open [http://localhost:7860](http://localhost:7860) to test manually.
 
-### 3. Run the MCP Server (For Agents)
-To test the agent-ready tool using the MCP Inspector:
+### 3. Run the Dashboard (Streamlit)
+```bash
+streamlit run streamlit_app.py
+```
+*Note: dashboard.py was renamed to streamlit_app.py for Cloud deployment.*
+
+### 4. Run the Legacy Gradio UI
+```bash
+python gradio_app.py
+```
+
+### 5. Run the MCP Server (For Agents)
 ```bash
 npx @modelcontextprotocol/inspector python mcp_server.py
 ```
 
 ---
 
-## 🔒 Corsair Permission Layer
-The included Corsair plugin (`corsair-plugin-edge-ai`) implements the following security rules:
-- **Classify**: Set to `open` (safe to run automatically).
-- **Route**: Set to `cautious`.
-- **Approval Rule**: If the routing logic recommends **Cloud LLM**, Corsair will pause and request human approval before allowing the agent to proceed.
+## 🐳 Docker Deployment
+```bash
+docker-compose up --build
+```
+Access the dashboard at `http://localhost:8501`.
 
 ---
 
-## 🧠 Model & Routing
-- **Model**: `typeform/distilbert-base-uncased-mnli` (Zero-shot NLI)
-- **Routing Logic**:
-    - Confidence < 55% → **Cloud LLM**
-    - Multi-step task → **Hybrid**
-    - High Confidence (≥ 75%) + Simple → **ODA**
-    - High Confidence (≥ 75%) + Complex → **Cloud LLM**
-    - Everything else → **Hybrid**
+## 🎯 Fine-Tuning the Classifier
+To hit >95% confidence on your domain:
+1. Collect samples in `training/domain_dataset.json`.
+2. Run the trainer:
+   ```bash
+   python training/train_classifier.py --epochs 5 --eval
+   ```
+3. Set `CLASSIFIER_MODEL_PATH=models/fine_tuned_classifier` in `.env`.
+
+---
+
+## 📁 Project Structure
+```
+├── streamlit_app.py      # Main Streamlit Dashboard (Production)
+├── qwen_oda.py           # Local AI Module (Qwen2-0.5B GGUF)
+├── grok_cloud.py         # Cloud AI Module (Grok API)
+├── classifier.py         # Intent Classifier (DistilBERT)
+├── router.py             # Routing Logic & Fallback Orchestration
+├── training/             # Fine-tuning scripts & datasets
+├── .streamlit/           # Cloud deployment config
+├── Dockerfile            # Containerization
+└── mcp_server.py         # Agent Discovery Layer
+```
