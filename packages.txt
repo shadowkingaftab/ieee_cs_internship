@@ -1,5 +1,3 @@
-# System packages for Streamlit Community Cloud
-# Required to compile llama-cpp-python from source on the cloud runner
 gcc
 g++
 cmake
