@@ -1,14 +1,3 @@
---extra-index-url https://download.pytorch.org/whl/cpu
-transformers
-torch
-gradio
-pandas
 streamlit
-plotly
-graphviz
-accelerate
-sentencepiece
+llama-cpp-python==0.2.7
 requests
-python-dotenv
-llama-cpp-python
-psutil>=5.9
