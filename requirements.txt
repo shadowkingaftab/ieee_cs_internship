@@ -1,4 +1,13 @@
+transformers
+torch
+gradio
+pandas
 streamlit
-llama-cpp-python==0.2.7
-requests==2.31.0
-python-dotenv==1.0.0
+plotly
+graphviz
+accelerate
+sentencepiece
+requests
+python-dotenv
+llama-cpp-python
+psutil>=5.9
