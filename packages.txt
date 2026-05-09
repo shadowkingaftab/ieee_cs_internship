@@ -2,3 +2,5 @@ gcc
 g++
 cmake
 make
+zlib1g-dev
+libjpeg-dev
