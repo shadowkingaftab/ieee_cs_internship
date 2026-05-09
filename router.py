@@ -17,9 +17,11 @@ import time
 
 # ── Lazy imports ──────────────────────────────────────────────────────────────
 def _qwen():
-    """Lazy-import run_qwen from qwen_oda."""
+    """Lazy-import run_qwen — returns None if llama_cpp is not installed."""
     try:
-        from qwen_oda import run_qwen
+        from qwen_oda import run_qwen, is_llm_available
+        if not is_llm_available():
+            return None
         return run_qwen
     except ImportError:
         return None
@@ -82,16 +84,17 @@ def route_task(intent_matrix: dict, text: str) -> dict:
     run_qwen = _qwen()
     _, run_grok_with_fallback = _grok()
 
-    # ── ODA: Local Qwen only ──────────────────────────────────────────────────
+    # ── ODA: Local Qwen, fall back to Grok if unavailable ───────────────────
     if route == "ODA":
         if run_qwen:
             output = run_qwen(text)
             model_used = "Qwen2-0.5B-GGUF"
+        elif run_grok_with_fallback:
+            # Qwen not installed — use Grok as stand-in
+            output, _ = run_grok_with_fallback(text)
+            model_used = "Grok (Qwen offline)"
         else:
-            output = (
-                "⚠️ Qwen not available.\n"
-                "Install: pip install llama-cpp-python"
-            )
+            output = "❌ No inference engine available. Set GROK_API_KEY or install llama-cpp-python."
             model_used = "none"
 
         latency_ms = round((time.time() - start_time) * 1000, 2)
@@ -130,12 +133,15 @@ def route_task(intent_matrix: dict, text: str) -> dict:
         edge_prompt  = f"Handle the first part of this task concisely: {text}"
         cloud_prompt = f"Handle the second part of this task in detail: {text}"
 
-        # Edge (Qwen)
+        # Edge (Qwen → Grok fallback)
         if run_qwen:
             edge_output  = run_qwen(edge_prompt)
             edge_model   = "Qwen2-0.5B-GGUF"
+        elif run_grok_with_fallback:
+            edge_output, _ = run_grok_with_fallback(edge_prompt)
+            edge_model   = "Grok (Qwen offline)"
         else:
-            edge_output  = "⚠️ Qwen not available (install llama-cpp-python)."
+            edge_output  = "❌ No inference engine available."
             edge_model   = "none"
 
         # Cloud (Grok → Qwen fallback)

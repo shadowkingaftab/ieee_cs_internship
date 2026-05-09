@@ -95,6 +95,15 @@ _llm_lock   = threading.Lock()
 _load_error: str | None = None
 
 
+def is_llm_available() -> bool:
+    """Returns True only if llama_cpp is actually installed and importable."""
+    try:
+        import llama_cpp  # noqa: F401
+        return True
+    except ImportError:
+        return False
+
+
 # ── Hardware info (for dashboard display) ─────────────────────────────────────
 def get_hardware_info() -> dict:
     """Return hardware summary for display in the dashboard sidebar."""
