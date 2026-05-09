@@ -1,35 +1,33 @@
 import streamlit as st
 from llama_cpp import Llama
+from huggingface_hub import hf_hub_download
 import os
-import requests
 
 # --- Config ---
-# Qwen2-0.5B is ~379MB and fits perfectly on Streamlit Cloud's 1GB RAM limit.
-# The 1.8B model is 1.13GB and would crash the cloud instance with Out Of Memory errors.
-QWEN_MODEL_URL = "https://huggingface.co/Qwen/Qwen2-0.5B-Instruct-GGUF/resolve/main/qwen2-0_5b-instruct-q4_k_m.gguf"
-QWEN_MODEL_PATH = "qwen2-0_5b-instruct-q4_k_m.gguf"
+REPO_ID = "Qwen/Qwen2-0.5B-Instruct-GGUF"
+FILENAME = "qwen2-0_5b-instruct-q4_k_m.gguf"
 
 @st.cache_resource
-def download_model():
-    """Downloads the GGUF model if it doesn't exist, avoiding GitHub's 100MB file limit."""
-    if not os.path.exists(QWEN_MODEL_PATH):
-        response = requests.get(QWEN_MODEL_URL, stream=True)
-        response.raise_for_status()
-        with open(QWEN_MODEL_PATH, "wb") as f:
-            for chunk in response.iter_content(chunk_size=8192):
-                f.write(chunk)
-    return True
+def load_llm():
+    """Safely downloads and loads the GGUF model using HuggingFace Hub."""
+    # This automatically handles downloading, resuming, and caching the model securely
+    model_path = hf_hub_download(repo_id=REPO_ID, filename=FILENAME)
+    
+    return Llama(
+        model_path=model_path,
+        n_ctx=2048,  # Context window
+        n_threads=4,  # CPU threads
+        n_gpu_layers=0  # CPU-only
+    )
 
 # --- Lazy-load Qwen (ONLY WHEN NEEDED) ---
 if "llm" not in st.session_state:
-    with st.spinner("Loading Qwen (379MB, downloading on first run)..."):
-        download_model()
-        st.session_state.llm = Llama(
-            model_path=QWEN_MODEL_PATH,
-            n_ctx=2048,  # Context window
-            n_threads=4,  # CPU threads
-            n_gpu_layers=0  # CPU-only (Streamlit Cloud has no GPU)
-        )
+    with st.spinner("Downloading & Loading Qwen (379MB, first run only)..."):
+        try:
+            st.session_state.llm = load_llm()
+        except Exception as e:
+            st.error(f"Failed to load model: {e}")
+            st.stop()
 
 def get_response(prompt):
     output = st.session_state.llm(
