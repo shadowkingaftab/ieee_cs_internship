@@ -5,5 +5,8 @@ huggingface-hub
 requests
 plotly
 pandas
+transformers
+--extra-index-url https://download.pytorch.org/whl/cpu
+torch
 python-dotenv
 psutil
